@@ -3,7 +3,7 @@
 Bronze Load Script — CSV -> Bronze
 ===============================================================================
 How to run:
-  mysql -u root -p --local-infile=1 --silent --skip-column-names datawarehouse < proc_load_bronze.sql
+  mysql -u root -p --local-infile=1 --silent --skip-column-names datawarehouse < load_bronze.sql
 ===============================================================================
 */
 
@@ -20,6 +20,12 @@ SELECT '------------------------------------------------' AS msg;
 SELECT 'Loading CRM Tables' AS msg;
 SELECT '------------------------------------------------' AS msg;
 
+-- Save original mode
+SET @old_sql_mode = @@SESSION.sql_mode;
+
+-- Temporarily allow bad data (Bronze is raw)
+SET SESSION sql_mode = '';
+
 SELECT '>> Truncating Table: bronze__crm_cust_info' AS msg;
 TRUNCATE TABLE bronze__crm_cust_info;
 
@@ -28,7 +34,7 @@ LOAD DATA LOCAL INFILE '/Users/chinazabelolisa/sql-data-warehouse/datasets/sourc
 INTO TABLE bronze__crm_cust_info
 FIELDS TERMINATED BY ','
 ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
+LINES TERMINATED BY '\r\n'
 IGNORE 1 LINES
 (cst_id, cst_key, cst_firstname, cst_lastname, cst_marital_status, cst_gndr, cst_create_date);
 
@@ -44,7 +50,7 @@ LOAD DATA LOCAL INFILE '/Users/chinazabelolisa/sql-data-warehouse/datasets/sourc
 INTO TABLE bronze__crm_prd_info
 FIELDS TERMINATED BY ','
 ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
+LINES TERMINATED BY '\r\n'
 IGNORE 1 LINES
 (prd_id, prd_key, prd_nm, prd_cost, prd_line, prd_start_dt, prd_end_dt);
 
@@ -60,7 +66,7 @@ LOAD DATA LOCAL INFILE '/Users/chinazabelolisa/sql-data-warehouse/datasets/sourc
 INTO TABLE bronze__crm_sales_details
 FIELDS TERMINATED BY ','
 ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
+LINES TERMINATED BY '\r\n'
 IGNORE 1 LINES
 (sls_ord_num, sls_prd_key, sls_cust_id, sls_order_dt, sls_ship_dt, sls_due_dt, sls_sales, sls_quantity, sls_price);
 
@@ -83,7 +89,7 @@ LOAD DATA LOCAL INFILE '/Users/chinazabelolisa/sql-data-warehouse/datasets/sourc
 INTO TABLE bronze__erp_loc_a101
 FIELDS TERMINATED BY ','
 ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
+LINES TERMINATED BY '\r\n'
 IGNORE 1 LINES
 (cid, cntry);
 
@@ -99,7 +105,7 @@ LOAD DATA LOCAL INFILE '/Users/chinazabelolisa/sql-data-warehouse/datasets/sourc
 INTO TABLE bronze__erp_cust_az12
 FIELDS TERMINATED BY ','
 ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
+LINES TERMINATED BY '\r\n'
 IGNORE 1 LINES
 (cid, bdate, gen);
 
@@ -115,13 +121,15 @@ LOAD DATA LOCAL INFILE '/Users/chinazabelolisa/sql-data-warehouse/datasets/sourc
 INTO TABLE bronze__erp_px_cat_g1v2
 FIELDS TERMINATED BY ','
 ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
+LINES TERMINATED BY '\r\n'
 IGNORE 1 LINES
 (id, cat, subcat, maintenance);
 
 SELECT CONCAT('>> Rows loaded: ', (SELECT COUNT(*) FROM bronze__erp_px_cat_g1v2)) AS msg;
 SELECT '>> -------------' AS msg;
 
+-- Immediately restore strict mode
+SET SESSION sql_mode = @old_sql_mode;
 
 SELECT '==========================================' AS msg;
 SELECT 'Loading Bronze Layer is Completed' AS msg;

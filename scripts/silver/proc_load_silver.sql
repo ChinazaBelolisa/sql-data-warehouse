@@ -84,11 +84,17 @@ BEGIN
             WHEN UPPER(TRIM(cst_gndr)) = 'M' THEN 'Male'
             ELSE 'n/a'
         END AS cst_gndr,
-        cst_create_date
+        NULLIF(cst_create_date, '0000-00-00') AS cst_create_date
     FROM (
         SELECT
-            b.*,
-            ROW_NUMBER() OVER (PARTITION BY cst_id ORDER BY cst_create_date DESC) AS flag_last
+            b.cst_id,
+			b.cst_key,
+			b.cst_firstname,
+			b.cst_lastname,
+			b.cst_marital_status,
+			b.cst_gndr,
+			NULLIF(b.cst_create_date, '0000-00-00') AS cst_create_date,
+            ROW_NUMBER() OVER (PARTITION BY cst_id ORDER BY NULLIF(b.cst_create_date, '0000-00-00') DESC) AS flag_last
         FROM bronze__crm_cust_info b
         WHERE cst_id IS NOT NULL
     ) t
@@ -151,73 +157,62 @@ BEGIN
 
     SELECT '>> Inserting Data Into: silver__crm_sales_details';
     INSERT INTO silver__crm_sales_details (
-        sls_ord_num,
-        sls_prd_key,
-        sls_cust_id,
-        sls_order_dt,
-        sls_ship_dt,
-        sls_due_dt,
-        sls_sales,
-        sls_quantity,
-        sls_price
-    )
-    SELECT
-        x.sls_ord_num,
-        x.sls_prd_key,
-        x.sls_cust_id,
-        x.sls_order_dt,
-        x.sls_ship_dt,
-        x.sls_due_dt,
-        x.sls_sales_corrected AS sls_sales,
-        x.sls_quantity,
-        x.sls_price_corrected AS sls_price
-    FROM (
-        SELECT
-            b.sls_ord_num,
-            b.sls_prd_key,
-            b.sls_cust_id,
-
-            CASE
-                WHEN b.sls_order_dt = 0 OR CHAR_LENGTH(CAST(b.sls_order_dt AS CHAR)) <> 8 THEN NULL
-                ELSE STR_TO_DATE(CAST(b.sls_order_dt AS CHAR), '%Y%m%d')
-            END AS sls_order_dt,
-
-            CASE
-                WHEN b.sls_ship_dt = 0 OR CHAR_LENGTH(CAST(b.sls_ship_dt AS CHAR)) <> 8 THEN NULL
-                ELSE STR_TO_DATE(CAST(b.sls_ship_dt AS CHAR), '%Y%m%d')
-            END AS sls_ship_dt,
-
-            CASE
-                WHEN b.sls_due_dt = 0 OR CHAR_LENGTH(CAST(b.sls_due_dt AS CHAR)) <> 8 THEN NULL
-                ELSE STR_TO_DATE(CAST(b.sls_due_dt AS CHAR), '%Y%m%d')
-            END AS sls_due_dt,
-
-            b.sls_quantity,
-
-            CASE
-                WHEN b.sls_sales IS NULL
-                  OR b.sls_sales <= 0
-                  OR b.sls_sales <> b.sls_quantity * ABS(b.sls_price)
-                THEN b.sls_quantity * ABS(b.sls_price)
-                ELSE b.sls_sales
-            END AS sls_sales_corrected,
-
-            CASE
-                WHEN b.sls_price IS NULL OR b.sls_price <= 0
-                THEN (
-                    CASE
-                        WHEN b.sls_sales IS NULL
-                          OR b.sls_sales <= 0
-                          OR b.sls_sales <> b.sls_quantity * ABS(b.sls_price)
-                        THEN b.sls_quantity * ABS(b.sls_price)
-                        ELSE b.sls_sales
-                    END
-                ) / NULLIF(b.sls_quantity, 0)
-                ELSE b.sls_price
-            END AS sls_price_corrected
-
-        FROM bronze__crm_sales_details b
-    ) x;
+    sls_ord_num,
+    sls_prd_key,
+    sls_cust_id,
+    sls_order_dt,
+    sls_ship_dt,
+    sls_due_dt,
+    sls_sales,
+    sls_quantity,
+    sls_price
+	)
+	SELECT
+		sls_ord_num,
+		sls_prd_key,
+		sls_cust_id,
+		sls_order_dt,
+		sls_ship_dt,
+		sls_due_dt,
+		CASE 
+			WHEN bronze_sales IS NULL OR bronze_sales <= 0 OR ABS(bronze_sales) <> sls_quantity * sls_price_corrected
+				THEN sls_quantity * sls_price_corrected
+			ELSE ABS(bronze_sales)
+		END AS sls_sales, -- Step 2: Recalculate sales using corrected price
+		sls_quantity,
+		sls_price_corrected AS sls_price
+	FROM (
+		SELECT
+			b.sls_ord_num,
+			b.sls_prd_key,
+			b.sls_cust_id,
+			
+			CASE
+				WHEN b.sls_order_dt = 0 OR CHAR_LENGTH(CAST(b.sls_order_dt AS CHAR)) <> 8 THEN NULL
+				ELSE STR_TO_DATE(CAST(b.sls_order_dt AS CHAR), '%Y%m%d')
+			END AS sls_order_dt,
+			
+			CASE
+				WHEN b.sls_ship_dt = 0 OR CHAR_LENGTH(CAST(b.sls_ship_dt AS CHAR)) <> 8 THEN NULL
+				ELSE STR_TO_DATE(CAST(b.sls_ship_dt AS CHAR), '%Y%m%d')
+			END AS sls_ship_dt,
+			
+			CASE
+				WHEN b.sls_due_dt = 0 OR CHAR_LENGTH(CAST(b.sls_due_dt AS CHAR)) <> 8 THEN NULL
+				ELSE STR_TO_DATE(CAST(b.sls_due_dt AS CHAR), '%Y%m%d')
+			END AS sls_due_dt,
+			
+			b.sls_quantity,
+			b.sls_sales AS bronze_sales,
+			
+			CASE 
+				WHEN b.sls_price IS NULL OR b.sls_price = 0 
+					THEN ABS(b.sls_sales) / NULLIF(b.sls_quantity, 0)
+				ELSE ABS(b.sls_price)
+			END AS sls_price_corrected -- STEP 1: Correct price first (convert negative to positive, derive if zero/null)
+			
+		FROM bronze__crm_sales_details b
+	) x;
 
     SET v_end = NOW();
     SELECT CONCAT('>> Load Duration: ', TIMESTAMPDIFF(SECOND, v_start, v_end), ' seconds');

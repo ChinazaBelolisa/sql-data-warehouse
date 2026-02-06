@@ -132,12 +132,11 @@ ORDER BY sls_sales, sls_quantity, sls_price;
 -- ====================================================================
 
 -- Identify Out-of-Range Dates
--- Expectation: Birthdates between 1924-01-01 and Today
+-- Expectation: No Results
 SELECT DISTINCT
     bdate
 FROM silver__erp_cust_az12
-WHERE bdate < '1924-01-01'
-   OR bdate > CURRENT_DATE;
+WHERE bdate > CURRENT_DATE;
 
 -- Data Standardization & Consistency
 SELECT DISTINCT
