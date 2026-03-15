@@ -102,7 +102,6 @@ sql-data-warehouse/
 │   ├── quality_checks_silver.sql
 │   └── quality_checks_gold.sql
 │
-├── LICENSE
 └── README.md
 ```
 
@@ -124,7 +123,3 @@ sql-data-warehouse/
 - **`dim_customers`**: Joins CRM customer info with ERP demographics and location; applies gender fallback logic (CRM primary, ERP secondary)
 - **`dim_products`**: Joins CRM product info with ERP categories; filters to current products only (`prd_end_dt IS NULL`)
 - **`fact_sales`**: Links sales transactions to dimension surrogate keys via lookups on product number and customer ID
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
